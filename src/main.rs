@@ -63,49 +63,6 @@ impl CountryData {
     }
 }
 
-fn load_csv_data(file_path: PathBuf) -> Result<HashData, csv::Error> {
-    let mut rdr = csv::Reader::from_path(file_path)?;
-    let mut all_data: HashMap<String, CountryData> = HashMap::new();
-    for result in rdr.deserialize() {
-        let record: RowData = match result {
-            Ok(data) => data,
-            Err(e) => return Err(csv::Error::from(e))
-        };
-        // Get existing data for country, or if no country , insert the country with zeroed data
-        let country_data = all_data.entry(record.country).or_insert(CountryData::new());
-
-        // add the data to the country
-        let cases = match record.cases { Some(v) => v, None =>  0 };
-        let deaths = match record.deaths { Some(v) => v, None =>  0 };
-        let recovered = match record.recovered { Some(v) => v, None =>  0 };
-        country_data.add(cases, deaths, recovered);
-
-    };
-    all_data.insert(String::from("Europe"), aggregate_europe(&all_data));
-    Ok(all_data)
-}
-
-fn aggregate_europe(data : &HashData) -> CountryData {
-    let european_countries = vec![
-        "Italy", "France","Spain", "Germany","Switzerland", "United Kingdom", "Netherlands", "Norway", "Belgium", "Austria", "Sweden", "Denmark",
-        "Czechia", "Portugal", "Greece", "Finland", "Ireland", "Slovenia", "Estonia", "Iceland", "Poland", "Romania", "Luxembourg", "Slovakia", "Armenia", "Serbia", 
-        "Bulgaria", "Croatia", "Latvia", "Albania", "Hungary", "Belarus", "Cyprus", "Georgia", "Bosnia and Herzegovina", "Malta", "North Macedonia"
-    ];
-    let mut europe_count = CountryData::new();
-    for country in european_countries {
-        match data.get(country) {
-            Some(country_data) => {
-                    europe_count.add(country_data.cases, country_data.deaths, country_data.recovered);
-                }
-            None => {
-                // println!("Failed getting European country {}", country);
-                ()
-            }
-        } 
-    }
-    europe_count
-}
-
 fn get_data_files() -> std::io::Result<Vec<PathBuf>> {
     // Same folder path, but how to express it depends on the OS fs API.
     #[cfg(target_os = "linux")]
@@ -150,6 +107,18 @@ fn get_watchlist() -> HashMap<String, String> {
     watchlist
 }
 
+
+fn get_data_from_file_paths(files : Vec<PathBuf>, watchlist: HashMap<String, String>) -> Vec<HashData> {
+    let mut all_data = Vec::new();
+    for file_path in files {
+        let hasdata = get_data_from_file(file_path, &watchlist);
+        if let Some(hashdata) = hasdata {
+            all_data.push(hashdata);
+        }
+    };
+    all_data
+}
+
 fn get_data_from_file(file_path : PathBuf, watchlist: &HashMap<String, String>) -> Option<HashData> {
     let data = match load_csv_data(file_path) {
         Ok(csv_data) => csv_data,
@@ -175,31 +144,63 @@ fn get_data_from_file(file_path : PathBuf, watchlist: &HashMap<String, String>) 
     }
 }
 
-fn get_data_from_file_paths(files : Vec<PathBuf>, watchlist: HashMap<String, String>) -> Vec<HashData> {
-    let mut all_data = Vec::new();
-    for file_path in files {
-        let hasdata = get_data_from_file(file_path, &watchlist);
-        if let Some(hashdata) = hasdata {
-            all_data.push(hashdata);
-        }
+fn load_csv_data(file_path: PathBuf) -> Result<HashData, csv::Error> {
+    let mut rdr = csv::Reader::from_path(file_path)?;
+    let mut all_data: HashMap<String, CountryData> = HashMap::new();
+    for result in rdr.deserialize() {
+        let record: RowData = match result {
+            Ok(data) => data,
+            Err(e) => return Err(csv::Error::from(e))
+        };
+        // Get existing data for country, or if no country , insert the country with zeroed data
+        let country_data = all_data.entry(record.country).or_insert(CountryData::new());
+
+        // add the data to the country
+        let cases = match record.cases { Some(v) => v, None =>  0 };
+        let deaths = match record.deaths { Some(v) => v, None =>  0 };
+        let recovered = match record.recovered { Some(v) => v, None =>  0 };
+        country_data.add(cases, deaths, recovered);
+
     };
-    all_data
+    all_data.insert(String::from("Europe"), aggregate_europe(&all_data));
+    Ok(all_data)
+}
+
+fn aggregate_europe(data : &HashData) -> CountryData {
+    let european_countries = vec![
+        "Italy", "France","Spain", "Germany","Switzerland", "United Kingdom", "Netherlands", "Norway", "Belgium", "Austria", "Sweden", "Denmark",
+        "Czechia", "Portugal", "Greece", "Finland", "Ireland", "Slovenia", "Estonia", "Iceland", "Poland", "Romania", "Luxembourg", "Slovakia", "Armenia", "Serbia", 
+        "Bulgaria", "Croatia", "Latvia", "Albania", "Hungary", "Belarus", "Cyprus", "Georgia", "Bosnia and Herzegovina", "Malta", "North Macedonia"
+    ];
+    let mut europe_count = CountryData::new();
+    for country in european_countries {
+        match data.get(country) {
+            Some(country_data) => {
+                    europe_count.add(country_data.cases, country_data.deaths, country_data.recovered);
+                }
+            None => {
+                // println!("Failed getting European country {}", country);
+                ()
+            }
+        } 
+    }
+    europe_count
 }
 
 fn main() {
     println!("COVID-19 Situation in the world");
-
+    
     println!("Loading watchlist settings...");
     let watchlist = get_watchlist();
     
     println!("Reading directory...");
-    let files = get_data_files().unwrap();
-
+    let files = get_data_files().expect("Failed to get CSV files list");
+    
     println!("Gathering data...");
     let all_data = get_data_from_file_paths(files, watchlist);
     println!("{} days worth of data gathered", all_data.len());
 
     for date in all_data {
-
+        
     }
 }
