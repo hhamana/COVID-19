@@ -6,6 +6,7 @@ use std::{
 };
 use csv;
 use serde::Deserialize;
+use chrono::{prelude::*,Duration};
 
 type HashData = HashMap<String, CountryData>;
 
@@ -108,18 +109,24 @@ fn get_watchlist() -> HashMap<String, String> {
 }
 
 
-fn get_data_from_file_paths(files : Vec<PathBuf>, watchlist: HashMap<String, String>) -> Vec<HashData> {
-    let mut all_data = Vec::new();
+fn get_data_from_file_paths(files : Vec<PathBuf>, watchlist: HashMap<String, String>) -> HashMap<String, HashData> {
+    let mut all_data = HashMap::new();
     for file_path in files {
-        let hasdata = get_data_from_file(file_path, &watchlist);
+        let day = match file_path.file_stem() {
+            Some(day) => {
+                day.to_str().unwrap().to_owned()
+            },
+            None => panic!("No file name for file path {:?}", file_path)
+        };
+        let hasdata = filter_watchlist_from_file(file_path, &watchlist);
         if let Some(hashdata) = hasdata {
-            all_data.push(hashdata);
+            all_data.insert(day, hashdata);
         }
     };
     all_data
 }
 
-fn get_data_from_file(file_path : PathBuf, watchlist: &HashMap<String, String>) -> Option<HashData> {
+fn filter_watchlist_from_file(file_path : PathBuf, watchlist: &HashMap<String, String>) -> Option<HashData> {
     let data = match load_csv_data(file_path) {
         Ok(csv_data) => csv_data,
         Err(err) => {
@@ -127,8 +134,6 @@ fn get_data_from_file(file_path : PathBuf, watchlist: &HashMap<String, String>) 
             return None
         }
     };
-
-    // let data = aggregate_europe(csv_data);
 
     let mut watched_data: HashData = HashMap::new();
     for (key, target) in watchlist {
@@ -187,6 +192,7 @@ fn aggregate_europe(data : &HashData) -> CountryData {
     europe_count
 }
 
+
 fn main() {
     println!("COVID-19 Situation in the world");
     
@@ -200,7 +206,22 @@ fn main() {
     let all_data = get_data_from_file_paths(files, watchlist);
     println!("{} days worth of data gathered", all_data.len());
 
-    for date in all_data {
-        
+    // iterate hashmap keys in chronological order.
+    let mut as_date = Utc.ymd(2020, 1, 22).and_hms(0,0,0);
+    let mut next = as_date.format("%m-%d-%Y").to_string();
+    let one_day = Duration::seconds(24*60*60);
+    println!("as_date: {}", next);
+    while let Some(country_hashmap) = all_data.get(&next) {
+        // for (day, country_hashmap) in all_data {
+            println!(" ");
+            for (country, country_data) in country_hashmap {
+                println!("{}: {}% active", country, country_data.percentage);
+            }
+            println!("");
+            
+        // as_date.and_hms(24, 0,0);
+        as_date = as_date + one_day;
+        next = as_date.format("%m-%d-%Y").to_string();
+        println!("{}", next);
     }
 }
