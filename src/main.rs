@@ -1,11 +1,12 @@
 use std::{
     // error::Error,
-    collections::HashMap,
+    collections::{HashMap},
     path::{Path, PathBuf},
     fs
 };
 use csv;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json;
 use chrono::{prelude::*,Duration};
 
 type HashData = HashMap<String, CountryData>;
@@ -35,7 +36,7 @@ struct RowData {
     // longitude: Option<f64>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct CountryData {
     cases: usize,
     deaths: usize,
@@ -95,21 +96,29 @@ fn get_data_files() -> std::io::Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn get_watchlist() -> HashMap<String, String> {
+fn get_watchlist() -> (HashMap<String, String>, Vec<String>) {
     let watchlist_file = "settings_data/watchlist.csv";
     let mut watchlist_reader = csv::Reader::from_path(watchlist_file).expect("Couldn't load watchlist countries CSV data");
-    let mut watchlist = HashMap::new();
+    let mut watchlist_hm = HashMap::new();
+
+
+    // Iterate the washlist target countries only (as vec to allow sorting instead of set)
+    let mut watchlist_vec = Vec::new();
+
     for watchlist_country in watchlist_reader.records() {
         let record = watchlist_country.unwrap();
         let name = record[0].trim().to_owned();
         let target = record[1].trim().to_owned();
-        watchlist.insert(name, target);
-    }
-    watchlist
+        watchlist_hm.insert(name, target.clone());
+        if !watchlist_vec.contains(&target) {
+            watchlist_vec.push(target.to_owned());
+        };
+    };
+    (watchlist_hm, watchlist_vec)
 }
 
 
-fn get_data_from_file_paths(files : Vec<PathBuf>, watchlist: HashMap<String, String>) -> HashMap<String, HashData> {
+fn get_data_from_file_paths(files : Vec<PathBuf>, watchlist: &HashMap<String, String>) -> HashMap<String, HashData> {
     let mut all_data = HashMap::new();
     for file_path in files {
         let day = match file_path.file_stem() {
@@ -192,36 +201,62 @@ fn aggregate_europe(data : &HashData) -> CountryData {
     europe_count
 }
 
-
 fn main() {
     println!("COVID-19 Situation in the world");
     
     println!("Loading watchlist settings...");
-    let watchlist = get_watchlist();
+    let (watchlist, mut watch_list_order) = get_watchlist();
     
     println!("Reading directory...");
     let files = get_data_files().expect("Failed to get CSV files list");
     
     println!("Gathering data...");
-    let all_data = get_data_from_file_paths(files, watchlist);
+    let all_data = get_data_from_file_paths(files, &watchlist);
     println!("{} days worth of data gathered", all_data.len());
 
-    // iterate hashmap keys in chronological order.
+
+    // iterate date keys in chronological order.
     let mut as_date = Utc.ymd(2020, 1, 22).and_hms(0,0,0);
     let mut next = as_date.format("%m-%d-%Y").to_string();
-    let one_day = Duration::seconds(24*60*60);
-    println!("as_date: {}", next);
+    let one_day = Duration::seconds(24*60*60); // no need to make it mutable
+
+
+    let mut previous_day_buffer = HashMap::new();
+    for country in &watch_list_order {
+        previous_day_buffer.insert(country.clone(), CountryData::new());
+    };
+
+    // Iterate here
     while let Some(country_hashmap) = all_data.get(&next) {
-        // for (day, country_hashmap) in all_data {
-            println!(" ");
-            for (country, country_data) in country_hashmap {
-                println!("{}: {}% active", country, country_data.percentage);
+        println!("{}", next);
+        println!(" ");
+        // sort by case number for the day
+        watch_list_order.sort_by(|a, b| { 
+            let ca = match country_hashmap.get(a) { Some(v) => v.cases, None => 0 };
+            let cb = match country_hashmap.get(b) { Some(v) => v.cases, None => 0 };
+            cb.cmp(&ca)
             }
-            println!("");
-            
-        // as_date.and_hms(24, 0,0);
+        );
+
+        // read data.
+        // Yes, this unfortunately creates a double read
+        for country in &watch_list_order {
+            let country_option = country_hashmap.get(country);
+            if let Some(country_data) = country_option {
+                let delta_abs = country_data.active as i32 - previous_day_buffer.get(country).unwrap().active as i32;
+                let delta_per = country_data.percentage as i32 - previous_day_buffer.get(country).unwrap().percentage as i32;
+                println!("{}: {} {}pt", country, delta_abs, delta_per);
+                // println!("{}: Total {} || {} active || {}% |||  {} {}pt", country, country_data.cases, country_data.active, country_data.percentage, delta_abs, delta_per);
+                previous_day_buffer.insert(country.to_owned(), country_data.to_owned());
+            };
+        };
+        println!("");
+
+        // prepare and format next date
         as_date = as_date + one_day;
         next = as_date.format("%m-%d-%Y").to_string();
-        println!("{}", next);
     }
+
+    // let buffer = fs::File::create("all_data.json").expect("Couldn't create file to write te json data");
+    // serde_json::to_writer_pretty(buffer, &all_data).expect("Couldn't write to the JSON file");
 }
