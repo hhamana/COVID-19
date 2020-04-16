@@ -1,5 +1,4 @@
 use std::{
-    // error::Error,
     collections::{HashMap},
     path::{Path, PathBuf},
     fs
@@ -68,9 +67,9 @@ impl CountryData {
 fn get_data_files() -> std::io::Result<Vec<PathBuf>> {
     // Same folder path, but how to express it depends on the OS fs API.
     #[cfg(target_os = "linux")]
-    let folder_path = Path::new("/media/aquarius/月火/AzureusPC/code/Python/Scrapers/COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/");
+    let folder_path = Path::new("./COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/");
     #[cfg(target_os = "windows")]
-    let folder_path = Path::new("D:\\AzureusPC\\code\\Python\\Scrapers\\COVID-19\\csse_covid_19_data\\csse_covid_19_daily_reports\\");
+    let folder_path = Path::new(".\\COVID-19\\csse_covid_19_data\\csse_covid_19_daily_reports\\");
 
     // needed to only keep csv
     let csv_type = std::ffi::OsStr::new("csv");
@@ -96,6 +95,7 @@ fn get_data_files() -> std::io::Result<Vec<PathBuf>> {
     Ok(files)
 }
 
+// Returns the watchlist as both a Hashmap to format duplicate countries, and a vec to have a soprtable key order
 fn get_watchlist() -> (HashMap<String, String>, Vec<String>) {
     let watchlist_file = "settings_data/watchlist.csv";
     let mut watchlist_reader = csv::Reader::from_path(watchlist_file).expect("Couldn't load watchlist countries CSV data");
@@ -117,7 +117,7 @@ fn get_watchlist() -> (HashMap<String, String>, Vec<String>) {
     (watchlist_hm, watchlist_vec)
 }
 
-
+// Take list of file paths, and returns the accumulated filtered data
 fn get_data_from_file_paths(files : Vec<PathBuf>, watchlist: &HashMap<String, String>) -> HashMap<String, HashData> {
     let mut all_data = HashMap::new();
     for file_path in files {
@@ -135,6 +135,7 @@ fn get_data_from_file_paths(files : Vec<PathBuf>, watchlist: &HashMap<String, St
     all_data
 }
 
+// Take one file and filter based on watclist countries
 fn filter_watchlist_from_file(file_path : PathBuf, watchlist: &HashMap<String, String>) -> Option<HashData> {
     let data = match load_csv_data(file_path) {
         Ok(csv_data) => csv_data,
@@ -158,6 +159,7 @@ fn filter_watchlist_from_file(file_path : PathBuf, watchlist: &HashMap<String, S
     }
 }
 
+// Load and serialize data to a convenient HashMap
 fn load_csv_data(file_path: PathBuf) -> Result<HashData, csv::Error> {
     let mut rdr = csv::Reader::from_path(file_path)?;
     let mut all_data: HashMap<String, CountryData> = HashMap::new();
@@ -180,6 +182,7 @@ fn load_csv_data(file_path: PathBuf) -> Result<HashData, csv::Error> {
     Ok(all_data)
 }
 
+// I want the sum of all European countries specifially
 fn aggregate_europe(data : &HashData) -> CountryData {
     let european_countries = vec![
         "Italy", "France","Spain", "Germany","Switzerland", "United Kingdom", "Netherlands", "Norway", "Belgium", "Austria", "Sweden", "Denmark",
@@ -245,8 +248,7 @@ fn main() {
             if let Some(country_data) = country_option {
                 let delta_abs = country_data.active as i32 - previous_day_buffer.get(country).unwrap().active as i32;
                 let delta_per = country_data.percentage as i32 - previous_day_buffer.get(country).unwrap().percentage as i32;
-                println!("{}: {} {}pt", country, delta_abs, delta_per);
-                // println!("{}: Total {} || {} active || {}% |||  {} {}pt", country, country_data.cases, country_data.active, country_data.percentage, delta_abs, delta_per);
+                println!("{}: Total {} || {} active || {}% |||  {} {}pt", country, country_data.cases, country_data.active, country_data.percentage, delta_abs, delta_per);
                 previous_day_buffer.insert(country.to_owned(), country_data.to_owned());
             };
         };
@@ -257,6 +259,6 @@ fn main() {
         next = as_date.format("%m-%d-%Y").to_string();
     }
 
-    // let buffer = fs::File::create("all_data.json").expect("Couldn't create file to write te json data");
-    // serde_json::to_writer_pretty(buffer, &all_data).expect("Couldn't write to the JSON file");
-}
+    let buffer = fs::File::create("all_data.json").expect("Couldn't create file to write te json data");
+    serde_json::to_writer_pretty(buffer, &all_data).expect("Couldn't write to the JSON file");
+} 
