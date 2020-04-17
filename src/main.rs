@@ -67,9 +67,9 @@ impl CountryData {
 fn get_data_files() -> std::io::Result<Vec<PathBuf>> {
     // Same folder path, but how to express it depends on the OS fs API.
     #[cfg(target_os = "linux")]
-    let folder_path = Path::new("./COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/");
+    let folder_path = Path::new("../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/");
     #[cfg(target_os = "windows")]
-    let folder_path = Path::new(".\\COVID-19\\csse_covid_19_data\\csse_covid_19_daily_reports\\");
+    let folder_path = Path::new("..\\COVID-19\\csse_covid_19_data\\csse_covid_19_daily_reports\\");
 
     // needed to only keep csv
     let csv_type = std::ffi::OsStr::new("csv");
@@ -79,18 +79,12 @@ fn get_data_files() -> std::io::Result<Vec<PathBuf>> {
     for item in folder_iterator {
         let entry = item?;
         let path = entry.path();
-        let extension = path.extension();
-        match extension {
-            Some(ext) => {
-                // Add file to Vec if it's a csv
-                if ext == csv_type {
-                    files.push(path)
-                }
-                // Do nothing otherwise
-            },
-            // Do nothing otherwise
-            _ => ()
-        }
+        if let Some(ext) = path.extension() {
+            // Add file to Vec if it's a csv
+            if ext == csv_type {
+                files.push(path)
+            }
+        };
     };
     Ok(files)
 }
@@ -164,10 +158,8 @@ fn load_csv_data(file_path: PathBuf) -> Result<HashData, csv::Error> {
     let mut rdr = csv::Reader::from_path(file_path)?;
     let mut all_data: HashMap<String, CountryData> = HashMap::new();
     for result in rdr.deserialize() {
-        let record: RowData = match result {
-            Ok(data) => data,
-            Err(e) => return Err(csv::Error::from(e))
-        };
+        let record: RowData = result?;
+
         // Get existing data for country, or if no country , insert the country with zeroed data
         let country_data = all_data.entry(record.country).or_insert(CountryData::new());
 
@@ -191,15 +183,9 @@ fn aggregate_europe(data : &HashData) -> CountryData {
     ];
     let mut europe_count = CountryData::new();
     for country in european_countries {
-        match data.get(country) {
-            Some(country_data) => {
-                    europe_count.add(country_data.cases, country_data.deaths, country_data.recovered);
-                }
-            None => {
-                // println!("Failed getting European country {}", country);
-                ()
-            }
-        } 
+        if let Some(country_data) = data.get(country) {
+            europe_count.add(country_data.cases, country_data.deaths, country_data.recovered);
+        }
     }
     europe_count
 }
