@@ -191,15 +191,9 @@ fn aggregate_europe(data : &HashData) -> CountryData {
     ];
     let mut europe_count = CountryData::new();
     for country in european_countries {
-        match data.get(country) {
-            Some(country_data) => {
-                    europe_count.add(country_data.cases, country_data.deaths, country_data.recovered);
-                }
-            None => {
-                // println!("Failed getting European country {}", country);
-                ()
-            }
-        } 
+        if let Some(country_data) = data.get(country) {
+            europe_count.add(country_data.cases, country_data.deaths, country_data.recovered);
+        }
     }
     europe_count
 }
