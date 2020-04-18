@@ -4,9 +4,9 @@ It outputs to the console a filtered view of configurable watched countries, and
 
 # How to use
 - clone this repo
-- under this, clone CSSEGIS's repository to get the same data  
- It is updated daily, so a git fetch/pull from the source is more convenient for everyone).  
-It should as such be in a `COVID-19` subfolder.
+- clone CSSEGIS's repository to get the same data  
+The repos should be on the same root folder. If you want another directory path, you can change the `get_data_files` function to the correct paths. 
+Or even better, implement a directory selection.
 - Configure countries you want to see in the settings_data/watchlist.csv file  
 It is in a "name", "target" format, so the same countires that is called with a different name can be merged together
 ie `Mainland China, China` will group entries as `Mainland China` with `China`
