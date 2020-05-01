@@ -10,6 +10,12 @@ use chrono::{prelude::*,Duration};
 
 type HashData = HashMap<String, CountryData>;
 
+// Same folder path, but how to express it depends on the OS fs API.
+#[cfg(target_os = "linux")]
+const DATA_FOLDER_PATH : &str = "../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/";
+#[cfg(target_os = "windows")]
+const DATA_FOLDER_PATH : &str = "..\\COVID-19\\csse_covid_19_data\\csse_covid_19_daily_reports\\";
+
 #[derive(Debug, Deserialize)]
 struct RowData {
     #[serde(alias = "Province_State", alias = "Province/State")]
@@ -65,11 +71,8 @@ impl CountryData {
 }
 
 fn get_data_files() -> std::io::Result<Vec<PathBuf>> {
-    // Same folder path, but how to express it depends on the OS fs API.
-    #[cfg(target_os = "linux")]
-    let folder_path = Path::new("../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/");
-    #[cfg(target_os = "windows")]
-    let folder_path = Path::new("..\\COVID-19\\csse_covid_19_data\\csse_covid_19_daily_reports\\");
+
+    let folder_path = Path::new(DATA_FOLDER_PATH);
 
     // needed to only keep csv
     let csv_type = std::ffi::OsStr::new("csv");
@@ -129,7 +132,7 @@ fn get_data_from_file_paths(files : Vec<PathBuf>, watchlist: &HashMap<String, St
     all_data
 }
 
-// Take one file and filter based on watclist countries
+// Take one file and filter based on watchlist countries
 fn filter_watchlist_from_file(file_path : PathBuf, watchlist: &HashMap<String, String>) -> Option<HashData> {
     let data = match load_csv_data(file_path) {
         Ok(csv_data) => csv_data,
@@ -245,6 +248,6 @@ fn main() {
         next = as_date.format("%m-%d-%Y").to_string();
     }
 
-    let buffer = fs::File::create("all_data.json").expect("Couldn't create file to write te json data");
+    let buffer = fs::File::create("all_data.json").expect("Couldn't create file to write the json data");
     serde_json::to_writer_pretty(buffer, &all_data).expect("Couldn't write to the JSON file");
 } 
